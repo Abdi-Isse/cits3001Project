@@ -61,7 +61,7 @@ public class ThreeChess{
      * **/
     public int compareTo(Object o){
       if(o instanceof Statistics){
-        Statistics stats = (Statistics) o;
+        Statistics stats = (Statistics) o; 
         return Double.compare(stats.average(), average());
       } else return -1;
     }
