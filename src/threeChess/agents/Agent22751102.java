@@ -4,53 +4,40 @@ import threeChess.*;
 
 import java.util.*;
 
-class Reward {
-    HashMap<Integer, Integer> rewards = new HashMap<>();
-    public Reward(int reward1, int reward2, int reward3){
-        rewards.put(0, reward1);
-        rewards.put(1, reward2);
-        rewards.put(2, reward3);
-    }
-
-    public HashMap<Integer, Integer> getReward(){
-        return rewards;
-    }
-
-    public int getRewardForPlayer(int player){
-        return rewards.get(player);
-    }
-
-    public void addReward(Reward reward) {
-        rewards.put(0, rewards.get(0) + reward.getRewardForPlayer(0));
-        rewards.put(1, rewards.get(1) + reward.getRewardForPlayer(1));
-        rewards.put(2, rewards.get(2) + reward.getRewardForPlayer(2));
-    }
-}
-
 class MctsNode {
     private final MctsNode parent;
     private int numSimulations = 0;
-    private Reward reward;
+    private double reward;
     private final LinkedList<MctsNode> children = new LinkedList<>();
     private final Position[][] unexploredMoves;
     private final Colour player;
-    private final Position[][] moveUsedToGetToNode;
+    private final Position[] moveUsedToGetToNode; // This is where we will store the moves. First arg stores the piece
+                                                  // and the next stores the start and end positions
     private int prevValue;
-    Board s;
+    private static final Random random = new Random();
+    Board state; // Copy of board
 
-    public MctsNode(MctsNode parent, Position[][] move, Board board) {
+    public MctsNode(MctsNode parent, Position[] move, Board board) {
         this.parent = parent;
         moveUsedToGetToNode = move;
-        unexploredMoves = getAvailableMoves(board);
-        reward = new Reward(0,0,0);
-        player = board.getTurn();
+        unexploredMoves = getAvailableMoves(board); // returns all the available moves currently on the board
+        reward = getRewardForPlayer(board); // initialise reward
+        player = board.getTurn(); // returns the Colour of the player whose turn it is)
     }
 
+    /**
+     * This method will loop through all the current child nodes in the decision
+     * tree and calculate all of their UCT values in order to find the most most
+     * promising child node to explore next
+     * 
+     * @return The most promising child node in the decision tree
+     */
     public MctsNode select() {
         MctsNode selectedNode = this;
         double max = Integer.MIN_VALUE;
 
-        for (MctsNode child : getChildren()) {
+        for (MctsNode child : getChildren()) { // for every child node, we calculate their UCT values and select the
+                                               // best one
             double uctValue = getUctValue(child);
 
             if (uctValue > max) {
@@ -59,16 +46,23 @@ class MctsNode {
             }
         }
 
-        return selectedNode;
+        return selectedNode; // returns the child node with the best uct value
     }
 
+    /**
+     * This is a method that will calculate and return the UCT Value for a child
+     * node
+     * 
+     * @param child
+     * @return The UCT value of the child node
+     */
     private double getUctValue(MctsNode child) {
         double uctValue;
 
         if (child.getNumberOfSimulations() == 0) {
             uctValue = 1;
         } else {
-            uctValue = (1.0 * child.getRewardForPlayer(getPlayer())) / (child.getNumberOfSimulations() * 1.0)
+            uctValue = (1.0 * getRewardForPlayer(child.state)) / (child.getNumberOfSimulations() * 1.0)
                     + (Math.sqrt(2 * (Math.log(getNumberOfSimulations() * 1.0) / child.getNumberOfSimulations())));
         }
 
@@ -77,23 +71,28 @@ class MctsNode {
         return uctValue;
     }
 
+    /**
+     * This method takes as an input a Board and then examines all the available
+     * positions currently on the board After examining the available moves on the
+     * board this method will play a random valid move and create a new child node
+     * 
+     * @param game
+     * @return
+     */
     public MctsNode expand(Board game) {
         if (!canExpand()) {
             return this;
         }
-        Position[] pieces = game.getPositions(game.getTurn()).toArray(new Position[0]);
-        Random random = new Random();
-        Position start = pieces[0];
-
-        Position move = unexploredMoves.remove(moveIndex);
-        game.makeMove(move);
+        Position[][] validMoves = getAvailableMoves(game);
+        int index = random.nextInt(validMoves[0].length);
+        Position[] move = validMoves[index];
         MctsNode child = new MctsNode(this, move, game);
         children.add(child);
         return child;
     }
 
-    public void backPropagate(Reward reward) {
-        this.reward.addReward(reward);
+    public void backPropagate(int reward) {
+        this.reward += reward;
         this.numSimulations++;
         if (parent != null) {
             parent.backPropagate(reward);
@@ -108,16 +107,12 @@ class MctsNode {
         return numSimulations;
     }
 
-    public int getPlayer() {
-        return player;
-    }
-
-    public double getRewardForPlayer(int player) {
-        return reward.getRewardForPlayer(player);
+    public double getRewardForPlayer(Board currentState) {
+        return reward(currentState);
     }
 
     public boolean canExpand() {
-        return unexploredMoves.size() > 0;
+        return unexploredMoves[0].length > 0;
     }
 
     public MctsNode getMostVisitedNode() {
@@ -134,7 +129,7 @@ class MctsNode {
         return bestChild;
     }
 
-    public Position getMoveUsedToGetToNode() {
+    public Position[] getMoveUsedToGetToNode() {
         return moveUsedToGetToNode;
     }
 
@@ -143,7 +138,7 @@ class MctsNode {
         if (numMoves <= 2)
             return 0; // Our agent hasn't moved yet.
         // We don't need to reconstruct the board! We already have it!
-        Board previous = s;
+        Board previous = state;
         // Here we have 2 boards, previous and current.
         // We generate the reward value for a board position to be the value of our
         // pieces + captured pieces at the current turn,
@@ -214,9 +209,99 @@ class MctsNode {
 public class Agent22751102 extends Agent {
 
     private static final String name = "Agent22751102";
+    Board gameCopy;
+    Board currentState;
+    Board state;
+    int prevValue;
+    int currentReward;
 
     public Agent22751102() {
 
+    }
+
+    public int maxIterations = 20;
+
+    public Position[] getMove(Board game) throws ImpossiblePositionException {
+        MctsNode rootNode = new MctsNode(null, null, game);
+
+        for (int iteration = 0; iteration < maxIterations; iteration++) {
+            try {
+                gameCopy = (Board) game.clone();
+            } catch (Exception e) {
+            }
+
+            MctsNode node = select(rootNode, gameCopy);
+            node = node.expand(gameCopy);
+            int reward = rollout(gameCopy);
+            node.backPropagate(reward);
+        }
+
+        MctsNode mostVisitedChild = rootNode.getMostVisitedNode();
+        return mostVisitedChild.getMoveUsedToGetToNode();
+    }
+
+    private MctsNode select(MctsNode node, Board game) throws ImpossiblePositionException {
+        while (!node.canExpand() && !game.gameOver()) {
+            node = node.select();
+            Position[] move = node.getMoveUsedToGetToNode();
+            if (move != null) {
+                game.move(move[0], move[1]);
+            }
+        }
+
+        return node;
+    }
+
+    private int rollout(Board game) {
+        setBoard(game);
+        return reward(game);
+    }
+
+    private int reward(Board current) {
+        int numMoves = current.getMoveCount();
+        if (numMoves <= 2)
+            return 0; // Our agent hasn't moved yet.
+        // We don't need to reconstruct the board! We already have it!
+        Board previous = state;
+        // Here we have 2 boards, previous and current.
+        // We generate the reward value for a board position to be the value of our
+        // pieces + captured pieces at the current turn,
+        // minus the value of our pieces + captured pieces from the previous turn.
+        int currentValue = 0;
+        Set<Position> currentPositions = current.getPositions(current.getTurn());
+        Piece[] currentPieces = new Piece[currentPositions.size()];
+        int i = 0;
+        for (Position position : currentPositions) {
+            currentPieces[i] = current.getPiece(position);
+            i++;
+        }
+        List<Piece> currentCaptured = current.getCaptured(current.getTurn());
+        for (Piece piece : currentPieces)
+            currentValue += piece.getValue();
+        for (Piece piece : currentCaptured)
+            currentValue += piece.getValue();
+
+        int previousValue = 0;
+        if (prevValue != 0)
+            previousValue = prevValue;
+        else { // Only calculate previous value if haven't already brought the previous value
+               // over
+            Set<Position> previousPositions = previous.getPositions(current.getTurn());
+            Piece[] previousPieces = new Piece[previousPositions.size()];
+            i = 0;
+            for (Position position : previousPositions) {
+                previousPieces[i] = previous.getPiece(position);
+                i++;
+            }
+            List<Piece> previousCaptured = previous.getCaptured(current.getTurn());
+            for (Piece piece : previousPieces)
+                previousValue += piece.getValue();
+            for (Piece piece : previousCaptured)
+                previousValue += piece.getValue();
+        }
+
+        prevValue = currentValue;
+        return currentValue - previousValue;
     }
 
     /**
@@ -232,6 +317,15 @@ public class Agent22751102 extends Agent {
      **/
     public Position[] playMove(Board board) {
         // COMPLETE THIS
+        currentState = board;
+        currentReward = reward(board);
+        if(board.gameOver()) return null;
+        try {
+            Position[] bestPosition = getMove(board);
+        } catch (ImpossiblePositionException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
         return new Position[] {};
     }
 
