@@ -10,19 +10,18 @@ class MctsNode {
     private double reward;
     private final LinkedList<MctsNode> children = new LinkedList<>();
     private final Position[][] unexploredMoves;
-    private final Colour player;
     private final Position[] moveUsedToGetToNode; // This is where we will store the moves. First arg stores the piece
                                                   // and the next stores the start and end positions
     private int prevValue;
-    private static final Random random = new Random();
     Board state; // Copy of board
+    Board previous;
 
     public MctsNode(MctsNode parent, Position[] move, Board board) {
         this.parent = parent;
         moveUsedToGetToNode = move;
         unexploredMoves = getAvailableMoves(board); // returns all the available moves currently on the board
         reward = getRewardForPlayer(board); // initialise reward
-        player = board.getTurn(); // returns the Colour of the player whose turn it is)
+        state = board;
     }
 
     /**
@@ -63,11 +62,8 @@ class MctsNode {
             uctValue = 1;
         } else {
             uctValue = (1.0 * getRewardForPlayer(child.state)) / (child.getNumberOfSimulations() * 1.0)
-                    + (Math.sqrt(2 * (Math.log(getNumberOfSimulations() * 1.0) / child.getNumberOfSimulations())));
+                    + (2*(Math.sqrt((Math.log(getNumberOfSimulations() * 1.0) / child.getNumberOfSimulations()))));
         }
-
-        Random r = new Random();
-        uctValue += (r.nextDouble() / 10000000);
         return uctValue;
     }
 
@@ -84,10 +80,12 @@ class MctsNode {
             return this;
         }
         Position[][] validMoves = getAvailableMoves(game);
-        int index = random.nextInt(validMoves[0].length);
-        Position[] move = validMoves[index];
-        MctsNode child = new MctsNode(this, move, game);
-        children.add(child);
+        for(int i = 0; i < validMoves.length; ++i) {
+            Position[] move = validMoves[i];
+            MctsNode child = new MctsNode(this, move, game);
+            children.add(child);
+        }
+        MctsNode child = children.get(0);
         return child;
     }
 
@@ -108,11 +106,16 @@ class MctsNode {
     }
 
     public double getRewardForPlayer(Board currentState) {
-        return reward(currentState);
+        int numMoves = currentState.getMoveCount();
+        if (numMoves <= 2)
+            return 0;
+        int score = reward(currentState);
+        previous = currentState;
+        return score;
     }
 
     public boolean canExpand() {
-        return unexploredMoves[0].length > 0;
+        return unexploredMoves.length > 0;
     }
 
     public MctsNode getMostVisitedNode() {
@@ -134,11 +137,13 @@ class MctsNode {
     }
 
     private int reward(Board current) {
+        if(previous == null) {
+            previous = current;
+        }
         int numMoves = current.getMoveCount();
         if (numMoves <= 2)
             return 0; // Our agent hasn't moved yet.
         // We don't need to reconstruct the board! We already have it!
-        Board previous = state;
         // Here we have 2 boards, previous and current.
         // We generate the reward value for a board position to be the value of our
         // pieces + captured pieces at the current turn,
@@ -177,6 +182,9 @@ class MctsNode {
         }
 
         prevValue = currentValue;
+        previous = current;
+        System.out.println("MCTS calculates a prev value of : " + prevValue);
+        System.out.println("MCTS calculates a reward value of : " + (currentValue - prevValue));
         return currentValue - previousValue;
     }
 
@@ -212,6 +220,7 @@ public class Agent22751102 extends Agent {
     Board gameCopy;
     Board currentState;
     Board state;
+    Board previous = state;
     int prevValue;
     int currentReward;
 
@@ -222,14 +231,12 @@ public class Agent22751102 extends Agent {
     public int maxIterations = 20;
 
     public Position[] getMove(Board game) throws ImpossiblePositionException {
-        MctsNode rootNode = new MctsNode(null, null, game);
-
+        try {
+            gameCopy = (Board) game.clone();
+        } catch (Exception e) {
+        }
+        MctsNode rootNode = new MctsNode(null, null, gameCopy);
         for (int iteration = 0; iteration < maxIterations; iteration++) {
-            try {
-                gameCopy = (Board) game.clone();
-            } catch (Exception e) {
-            }
-
             MctsNode node = select(rootNode, gameCopy);
             node = node.expand(gameCopy);
             int reward = rollout(gameCopy);
@@ -240,6 +247,13 @@ public class Agent22751102 extends Agent {
         return mostVisitedChild.getMoveUsedToGetToNode();
     }
 
+    /**
+     * This selects a node from the decision tree to evaulate
+     * @param node which has information about different moves
+     * @param game the board for said move
+     * @return the node that we select 
+     * @throws ImpossiblePositionException
+     */
     private MctsNode select(MctsNode node, Board game) throws ImpossiblePositionException {
         while (!node.canExpand() && !game.gameOver()) {
             node = node.select();
@@ -252,21 +266,28 @@ public class Agent22751102 extends Agent {
         return node;
     }
 
+    /**
+     * This function will simulate the current board till the end and then
+     * return the reward value of the simulated board
+     * @param game which is a board
+     * @return reward for the board
+     */
     private int rollout(Board game) {
         setBoard(game);
         return reward(game);
     }
 
+    /**
+     * This method will take a board as an argument and calculate the reward value for
+     * a board position. 
+     * Reward value = value of players pieces + value of pieces captured
+     * @param current which is the current board
+     * @return reward which is an integer
+     */
     private int reward(Board current) {
         int numMoves = current.getMoveCount();
         if (numMoves <= 2)
-            return 0; // Our agent hasn't moved yet.
-        // We don't need to reconstruct the board! We already have it!
-        Board previous = state;
-        // Here we have 2 boards, previous and current.
-        // We generate the reward value for a board position to be the value of our
-        // pieces + captured pieces at the current turn,
-        // minus the value of our pieces + captured pieces from the previous turn.
+            return 0; // Agent hasn't moved yet.
         int currentValue = 0;
         Set<Position> currentPositions = current.getPositions(current.getTurn());
         Piece[] currentPieces = new Piece[currentPositions.size()];
@@ -284,8 +305,7 @@ public class Agent22751102 extends Agent {
         int previousValue = 0;
         if (prevValue != 0)
             previousValue = prevValue;
-        else { // Only calculate previous value if haven't already brought the previous value
-               // over
+        else {
             Set<Position> previousPositions = previous.getPositions(current.getTurn());
             Piece[] previousPieces = new Piece[previousPositions.size()];
             i = 0;
@@ -319,9 +339,12 @@ public class Agent22751102 extends Agent {
         // COMPLETE THIS
         currentState = board;
         currentReward = reward(board);
-        if(board.gameOver()) return null;
+        if (board.gameOver())
+            return null;
         try {
             Position[] bestPosition = getMove(board);
+            previous = board;
+            return bestPosition;
         } catch (ImpossiblePositionException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
