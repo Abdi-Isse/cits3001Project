@@ -1,0 +1,7 @@
+Compile:
+javac -d bin src/threeChess/*.java src/threeChess/agents/*.java
+
+Run:
+java -cp bin/ threeChess.ThreeChess
+
+(under 'threeChess' folder)
