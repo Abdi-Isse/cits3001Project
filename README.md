@@ -32,8 +32,6 @@ it will create a bin directory to compile the program's class files into.
 
 
 ## Running ThreeChess
-
-### Challenge Brutus
 The following command can be used to start a game
 ```
 java -cp bin/ threeChess.ThreeChess  
