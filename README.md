@@ -20,21 +20,10 @@ This repo contains 6 agents:
     <ul><li>Allows player to make moves by clicking on the board</li></ul>
 </ul>
 
-## Compilation
-
-The following command can be used to compile threeChess,
-```
-javac -d bin src/threeChess/*.java src/threeChess/agents/*.java src/threeChess/agents/strategy/*.java
-```
-
-This command should be run from the directory above the src directory, where
-it will create a bin directory to compile the program's class files into.
-
-
 ## Running ThreeChess
-The following command can be used to start a game
+To run threechess run the following command from the root directory:
 ```
-java -cp bin/ threeChess.ThreeChess  
+./scipts/buid-and-run.sh  
 ```
 
 # ♜ The Project ♜
