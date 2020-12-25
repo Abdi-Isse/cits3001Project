@@ -23,7 +23,7 @@ This repo contains 6 agents:
 ## Running ThreeChess
 To run threechess run the following command from the root directory:
 ```
-./scipts/buid-and-run.sh  
+./scripts/buid-and-run.sh  
 ```
 
 # ♜ The Project ♜
